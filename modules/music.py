@@ -4,6 +4,8 @@ from telegram import client
 import yt_dlp
 import asyncio
 
+from panel_web import append_log, record_music_archive
+
 
 
 NAME = "music"
@@ -272,6 +274,8 @@ async def music_handler(event):
 
             )
 
+            record_music_archive(query, source="telegram")
+            append_log("music", "Telegram music sent to chat", {"query": query}, user="telegram")
 
 
         except Exception as e:

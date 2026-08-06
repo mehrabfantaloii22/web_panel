@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{title}}</title>
+  <style>
+    :root { --bg:#05050b; --panel:#0f1020; --panel-2:#171834; --accent:#8b5cf6; --accent-2:#22d3ee; --text:#f5f7ff; --muted:#8f94b9; --glow:rgba(139,92,246,.35); }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Inter,Segoe UI,Arial,sans-serif; background:radial-gradient(circle at top left, rgba(139,92,246,.26), transparent 28%), linear-gradient(135deg,#06060d,#0b0e19 75%); color:var(--text); min-height:100vh; }
+    body::before { content:""; position:fixed; inset:0; pointer-events:none; background:linear-gradient(120deg, transparent 0%, rgba(255,255,255,.04) 50%, transparent 100%); mix-blend-mode:screen; opacity:.5; }
+    .shell { max-width:1400px; margin:0 auto; padding:24px; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; padding:18px 24px; border:1px solid rgba(255,255,255,.08); background:rgba(15,16,32,.8); border-radius:24px; box-shadow:0 12px 40px rgba(0,0,0,.25); backdrop-filter:blur(14px); }
+    .brand { display:flex; align-items:center; gap:14px; }
+    .brand-badge { width:46px; height:46px; border-radius:14px; background:linear-gradient(135deg,var(--accent),var(--accent-2)); box-shadow:0 0 22px var(--glow); }
+    .cards { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:18px; margin:22px 0; }
+    .card { border-radius:22px; padding:20px; border:1px solid rgba(255,255,255,.08); background:linear-gradient(145deg,rgba(17,19,34,.95),rgba(10,11,20,.95)); box-shadow:0 10px 28px rgba(0,0,0,.24); }
+    .card h3 { margin:0 0 10px; color:var(--muted); font-size:14px; text-transform:uppercase; letter-spacing:.2em; }
+    .card .value { font-size:28px; font-weight:700; }
+    .grid { display:grid; grid-template-columns:2fr 1fr; gap:20px; }
+    .panel { border-radius:24px; padding:18px; background:rgba(12,14,24,.93); border:1px solid rgba(255,255,255,.08); box-shadow:0 15px 40px rgba(0,0,0,.22); }
+    .panel h2 { margin-top:0; font-size:22px; }
+    .list, .log-list { display:flex; flex-direction:column; gap:10px; }
+    .row { display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-radius:16px; background:rgba(255,255,255,.04); }
+    .pill { display:inline-block; padding:6px 10px; border-radius:999px; background:rgba(139,92,246,.2); color:#d9c5ff; font-size:12px; }
+    form { display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+    input, select, button { border-radius:12px; padding:12px 14px; border:1px solid rgba(255,255,255,.12); background:#121426; color:var(--text); }
+    button { cursor:pointer; background:linear-gradient(135deg,var(--accent),#6d28d9); font-weight:700; transition:transform .2s ease, box-shadow .2s ease; }
+    button:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(139,92,246,.25); }
+    a { color:#d9c5ff; text-decoration:none; }
+    .muted { color:var(--muted); }
+    .stack { display:flex; gap:10px; flex-wrap:wrap; }
+    .section { display:grid; gap:16px; margin-top:20px; }
+    @media (max-width:940px){ .cards{grid-template-columns:1fr 1fr;} .grid{grid-template-columns:1fr;} }
+    @media (max-width:640px){ .cards{grid-template-columns:1fr;} .topbar{flex-direction:column; gap:12px; align-items:flex-start;} }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-badge"></div>
+        <div>
+          <div style="font-weight:800; font-size:20px;">Fanta Control Panel</div>
+          <div class="muted">Premium web management dashboard</div>
+        </div>
+      </div>
+      <div class="stack">
+        <a href="/">Overview</a>
+        <a href="/logout">Logout</a>
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card"><h3>Modules</h3><div class="value">{{dashboard.module_count}}</div></div>
+      <div class="card"><h3>Active</h3><div class="value">{{dashboard.active_modules}}</div></div>
+      <div class="card"><h3>Archive</h3><div class="value">{{dashboard.archive|length}}</div></div>
+      <div class="card"><h3>Users</h3><div class="value">{{dashboard.users|length}}</div></div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>System overview</h2>
+        <div class="list">
+          <div class="row"><span>Logged in as</span><span class="pill">{{dashboard.user.username}}</span></div>
+          <div class="row"><span>Role</span><span class="pill">{{dashboard.user.role}}</span></div>
+          <div class="row"><span>Panel status</span><span class="pill">Operational</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Module controls</h2>
+        <form method="post" action="/api/settings">
+          {% for name, enabled in dashboard.settings.modules.items() %}
+          <label style="display:flex; align-items:center; justify-content:space-between; padding:8px 0;">
+            <span>{{name}}</span>
+            <input type="checkbox" name="module_{{name}}" {% if enabled %}checked{% endif %} />
+          </label>
+          {% endfor %}
+          <button type="submit">Save module settings</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="panel">
+        <h2>Music archive</h2>
+        <form method="post" action="/api/archive">
+          <input name="title" placeholder="Track title" />
+          <input name="url" placeholder="Media URL" />
+          <button type="submit">Add archive entry</button>
+        </form>
+        <div class="list" style="margin-top:12px;">
+          {% for song in dashboard.archive %}
+          <div class="row"><span>{{song.title}}</span><span class="pill">{{song.source}}</span></div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="panel">
+        <h2>Recent activity</h2>
+        <div class="log-list">
+          {% for entry in dashboard.logs %}
+          <div class="row"><span>{{entry.message}}</span><span class="pill">{{entry.category}}</span></div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="panel">
+        <h2>User administration</h2>
+        <form method="post" action="/api/users">
+          <input name="username" placeholder="Username" />
+          <input name="password" placeholder="Password" />
+          <select name="role">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button type="submit">Create user</button>
+        </form>
+        <div class="list" style="margin-top:12px;">
+          {% for user in dashboard.users %}
+          <div class="row"><span>{{user.username}}</span><span class="pill">{{user.role}}</span></div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
