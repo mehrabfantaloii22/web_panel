@@ -149,40 +149,23 @@ async def load_modules():
 
 
 async def main():
-
-
-    print(
-        "Starting web dashboard..."
-    )
-
+    print("Starting web dashboard...")
     web_thread = Thread(target=start_web_dashboard, daemon=True)
     web_thread.start()
 
-    print(
-        "Connecting to Telegram..."
-    )
-
-    await client.start()
-
-
-
-    print(
-        "Telegram Connected ✅"
-    )
-
-
-
-    await load_modules()
-
-
-
-    print(
-        "All modules loaded ✅"
-    )
-
-
-
-    await client.run_until_disconnected()
+    try:
+        print("Connecting to Telegram...")
+        await client.start()
+        print("Telegram Connected ✅")
+        await load_modules()
+        print("All modules loaded ✅")
+        await client.run_until_disconnected()
+    except Exception as exc:
+        print(f"Telegram startup skipped: {exc}")
+        print("Web dashboard remains available."
+              "Provide Telegram credentials only if you want the bot features enabled.")
+        while True:
+            await asyncio.sleep(60)
 
 
 

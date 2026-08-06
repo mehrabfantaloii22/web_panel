@@ -159,7 +159,7 @@ class DashboardApp:
         user = self._get_user(environ)
 
         if path == "/login" and method == "GET":
-            return self._render_page(start_response, "Login", {"show_login": True, "error": None, "user": None}, 200)
+            return self._render_page(start_response, "Login", {"show_login": True, "error": None, "user": None, "pending_login": None, "require_2fa": False}, 200)
         if path == "/login" and method == "POST":
             return self._handle_login(environ, start_response)
         if path == "/logout":
