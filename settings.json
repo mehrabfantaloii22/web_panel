@@ -1,0 +1,10 @@
+{
+    "modules": {
+        "kitty": true,
+        "ForwarderBot": false,
+        "hoy": true,
+        "dong": true,
+        "help": true,
+        "music": true
+    }
+}
