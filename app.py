@@ -180,7 +180,9 @@ class DashboardApp:
         method = environ.get("REQUEST_METHOD", "GET")
         user = self._get_user(environ)
 
-        if path == "/login" and method == "GET":
+        if path in {"/", "/login"} and method == "GET" and not user:
+            if path == "/":
+                return self._redirect(start_response, [], "/login")
             return self._render_page(start_response, "Login", {"show_login": True, "error": None, "user": None, "pending_login": None, "require_2fa": False}, 200)
         if path == "/login" and method == "POST":
             return self._handle_login(environ, start_response)
@@ -196,6 +198,9 @@ class DashboardApp:
             headers = []
             self._delete_cookie(headers, "panel_session")
             return self._redirect(start_response, headers, "/login")
+
+        if path == "/favicon.ico":
+            return self._response(start_response, "204 No Content", [("Content-Type", "image/x-icon")], b"")
 
         if path == "/api/modules":
             return self._json_response(start_response, read_panel_settings().get("modules", {}))
