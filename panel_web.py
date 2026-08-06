@@ -86,12 +86,55 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
-def authenticate_user(username: str, password: str):
+def validate_password(login: str, password: str):
     users_data, _, _, _ = ensure_defaults()
+    normalized_login = str(login or "").strip().lstrip("@")
+    if not normalized_login:
+        return None
     for user in users_data.get("users", []):
-        if user.get("username") == username and user.get("password") == hash_password(password):
+        candidates = {
+            str(user.get("username") or "").strip().lstrip("@"),
+            str(user.get("telegram_username") or "").strip().lstrip("@"),
+        }
+        if normalized_login in candidates and user.get("password") == hash_password(password):
             return user
     return None
+
+
+def authenticate_user(login: str, password: str, otp: str | None = None):
+    user = validate_password(login, password)
+    if not user:
+        return None
+    if user.get("telegram_2fa_enabled"):
+        if not otp:
+            return None
+        if str(otp).strip() != str(user.get("two_factor_code") or "").strip():
+            return None
+    return user
+
+
+def set_two_factor(username: str, enabled: bool | str = True, code: str | None = None):
+    users_data, _, _, _ = ensure_defaults()
+    users = users_data.setdefault("users", [])
+    if isinstance(enabled, str) and code is None:
+        code = enabled
+        enabled = True
+    for user in users:
+        if user.get("username") == username:
+            should_enable = bool(enabled)
+            user["telegram_2fa_enabled"] = should_enable
+            user["two_factor_code"] = str(code).strip() if should_enable and code else None
+            _save_json(AUTH_FILE, users_data)
+            return True
+    return False
+
+
+def verify_two_factor_code(username: str, code: str | None):
+    users_data, _, _, _ = ensure_defaults()
+    for user in users_data.get("users", []):
+        if user.get("username") == username:
+            return bool(user.get("telegram_2fa_enabled")) and str(code or "").strip() == str(user.get("two_factor_code") or "").strip()
+    return False
 
 
 def list_users():
@@ -99,16 +142,20 @@ def list_users():
     return users_data.get("users", [])
 
 
-def create_user(username: str, password: str, role: str = "user"):
+def create_user(username: str, password: str, role: str = "user", telegram_username: str | None = None):
     users_data, _, _, _ = ensure_defaults()
     users = users_data.setdefault("users", [])
     if any(item.get("username") == username for item in users):
         return None
+    normalized_telegram = str(telegram_username or "").strip().lstrip("@") if telegram_username else None
     user = {
         "id": secrets.token_hex(4),
         "username": username,
         "password": hash_password(password),
         "role": role,
+        "telegram_username": normalized_telegram,
+        "telegram_2fa_enabled": False,
+        "two_factor_code": None,
         "created_at": _now(),
     }
     users.append(user)

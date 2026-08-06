@@ -1,12 +1,12 @@
 import asyncio
-import os
 import importlib
-
+import os
+from threading import Thread
 
 from telegram import client
 
 import panel
-
+from app import DashboardApp
 
 
 MODULE_FOLDER = "modules"
@@ -15,7 +15,9 @@ MODULE_FOLDER = "modules"
 LOADED_MODULES = {}
 
 
-
+def start_web_dashboard():
+    app = DashboardApp()
+    app.run()
 
 
 async def load_modules():
@@ -150,10 +152,15 @@ async def main():
 
 
     print(
-        "Connecting..."
+        "Starting web dashboard..."
     )
 
+    web_thread = Thread(target=start_web_dashboard, daemon=True)
+    web_thread.start()
 
+    print(
+        "Connecting to Telegram..."
+    )
 
     await client.start()
 

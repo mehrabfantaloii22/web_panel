@@ -1,5 +1,6 @@
 import json
 import os
+import socket
 from http.cookies import SimpleCookie
 from urllib.parse import parse_qs, urlparse
 from wsgiref.simple_server import make_server
@@ -22,6 +23,8 @@ from panel_web import (
     update_password,
     write_panel_settings,
     append_log,
+    set_two_factor,
+    validate_password,
 )
 
 
@@ -30,6 +33,11 @@ class DashboardApp:
         self.host = os.getenv("HOST", "0.0.0.0")
         self.port = int(os.getenv("PORT", "8000"))
         self.jinja_env = Environment(loader=FileSystemLoader("templates"), autoescape=True)
+
+    def _find_available_port(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind((self.host, 0))
+            return sock.getsockname()[1]
 
     def _render(self, context):
         template = self.jinja_env.get_template("dashboard.html")
@@ -70,18 +78,30 @@ class DashboardApp:
             length = int(environ.get("CONTENT_LENGTH", "0"))
             body = environ["wsgi.input"].read(length).decode("utf-8")
             data = parse_qs(body)
-            username = data.get("username", [""])[0]
+            login_value = data.get("login", [""])[0]
             password = data.get("password", [""])[0]
-            user = authenticate_user(username, password)
+            otp = data.get("otp", [""])[0]
+            user = validate_password(login_value, password)
+            if user and user.get("telegram_2fa_enabled"):
+                if otp:
+                    user = authenticate_user(login_value, password, otp=otp)
+                if user:
+                    token = create_session(user.get("username"), user.get("role", "user"))
+                    headers = []
+                    self._set_cookie(headers, "panel_session", token)
+                    append_log("security", "Successful login", {"username": login_value}, user=login_value)
+                    return self._redirect(start_response, headers, "/")
+                append_log("security", "Failed login attempt", {"username": login_value}, user=login_value)
+                return self._render_page(start_response, "Login", {"show_login": True, "require_2fa": True, "pending_login": login_value, "error": "Invalid 2FA code"}, status=401)
             if user:
-                token = create_session(username, user.get("role", "user"))
+                token = create_session(user.get("username"), user.get("role", "user"))
                 headers = []
                 self._set_cookie(headers, "panel_session", token)
-                append_log("security", "Successful login", {"username": username}, user=username)
+                append_log("security", "Successful login", {"username": login_value}, user=login_value)
                 return self._redirect(start_response, headers, "/")
-            append_log("security", "Failed login attempt", {"username": username}, user=username)
+            append_log("security", "Failed login attempt", {"username": login_value}, user=login_value)
             return self._render_page(start_response, "Login", {"show_login": True, "error": "Invalid credentials"}, status=401)
-        return self._render_page(start_response, "Login", {"show_login": True, "error": None}, status=200)
+        return self._render_page(start_response, "Login", {"show_login": True, "require_2fa": False, "pending_login": None, "error": None}, status=200)
 
     def _redirect(self, start_response, headers, location):
         status = "302 Found"
@@ -191,7 +211,12 @@ class DashboardApp:
             username = data.get("username", [""])[0]
             password = data.get("password", [""])[0]
             role = data.get("role", ["user"])[0]
-            created = create_user(username, password, role=role)
+            telegram_username = data.get("telegram_username", [""])[0]
+            telegram_2fa_enabled = data.get("telegram_2fa_enabled", ["off"])[0] == "on"
+            two_factor_code = data.get("two_factor_code", [""])[0]
+            created = create_user(username, password, role=role, telegram_username=telegram_username)
+            if created:
+                set_two_factor(username, enabled=telegram_2fa_enabled, code=two_factor_code or None)
             return self._json_response(start_response, {"ok": created is not None, "user": created})
         if path == "/api/password" and method == "POST":
             length = int(environ.get("CONTENT_LENGTH", "0"))
@@ -218,9 +243,15 @@ class DashboardApp:
 
     def run(self):
         ensure_defaults()
-        with make_server(self.host, self.port, self) as httpd:
-            print(f"Web dashboard running on http://{self.host}:{self.port}")
-            httpd.serve_forever()
+        try:
+            with make_server(self.host, self.port, self) as httpd:
+                print(f"Web dashboard running on http://{self.host}:{self.port}")
+                httpd.serve_forever()
+        except OSError:
+            self.port = self._find_available_port()
+            with make_server(self.host, self.port, self) as httpd:
+                print(f"Web dashboard running on http://{self.host}:{self.port}")
+                httpd.serve_forever()
 
 
 def main():
