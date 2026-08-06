@@ -6,7 +6,11 @@ from urllib.parse import parse_qs, urlparse
 from wsgiref.simple_server import make_server
 from wsgiref.util import setup_testing_defaults
 
-from jinja2 import Environment, FileSystemLoader
+try:
+    from jinja2 import Environment, FileSystemLoader
+except Exception:  # pragma: no cover - fallback for environments without Jinja2 preinstalled
+    Environment = None
+    FileSystemLoader = None
 
 from panel_web import (
     authenticate_user,
@@ -32,7 +36,12 @@ class DashboardApp:
     def __init__(self):
         self.host = os.getenv("HOST", "0.0.0.0")
         self.port = int(os.getenv("PORT", "8000"))
-        self.jinja_env = Environment(loader=FileSystemLoader("templates"), autoescape=True)
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        template_dir = os.path.join(base_dir, "templates")
+        if Environment is not None and FileSystemLoader is not None:
+            self.jinja_env = Environment(loader=FileSystemLoader(template_dir), autoescape=True)
+        else:
+            self.jinja_env = None
 
     def _find_available_port(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -40,8 +49,21 @@ class DashboardApp:
             return sock.getsockname()[1]
 
     def _render(self, context):
-        template = self.jinja_env.get_template("dashboard.html")
-        return template.render(**context)
+        if self.jinja_env is not None:
+            template = self.jinja_env.get_template("dashboard.html")
+            return template.render(**context)
+        return self._render_fallback(context)
+
+    def _render_fallback(self, context):
+        html = []
+        show_login = bool(context.get("show_login"))
+        if show_login:
+            html.append("<h1>Welcome back</h1>")
+            html.append("<p>Use your Telegram username or panel username and password to enter the dashboard.</p>")
+        else:
+            html.append("<h1>Fanta Control Panel</h1>")
+            html.append("<p>Premium Telegram-ready management dashboard</p>")
+        return "\n".join(html)
 
     def _set_cookie(self, headers, name, value):
         cookie = SimpleCookie()
